@@ -127,7 +127,8 @@ class HIM:
         the multivariate normal distribution. For more than a few particles
         this doesn't work as the sampling efficiency drops to zero !!! 
         """
-        covmat = np.eye(self.N)/(self.deltaN)
+        #covmat = np.eye(self.N)/(self.deltaN)
+        covmat = np.eye(self.N)
         rv = multivariate_normal(mean=np.zeros(self.N),
                                  cov=covmat, allow_singular=False)
         M = np.power(self.KN,2)
@@ -150,11 +151,13 @@ class HIM:
         """
         x = np.linspace(-4,4,128,endpoint=True)
         [X1,X2] = np.meshgrid(x,x)
-        RHO2 = system.rho2(X1,X2)
-        RHO1 = system.rho1(X1)
-        PCOND2 = system.conditonalP(X2,X1,2)
+        RHO2 = self.rho2(X1,X2)
+        RHO1 = self.rho1(X1)
+        PCOND2 = self.conditonalP(X2,X1,2)
         fig, axs = plt.subplots(1,2,figsize = (12,6))
-        fig.suptitle('Verifying the implementation of the conditional probability\n Maximal difference betweeen the two implementations is {:3.2e}'
+        s = 'Verifying the implementation of the conditional probability\n'
+        s = s + 'Maximal difference betweeen the two implementations is {:3.2e}'
+        fig.suptitle(s
                   .format(np.max(PCOND2-RHO2/RHO1)),fontsize = 16)
         axs[0].pcolor(X1,X2,RHO2/RHO1);
         axs[1].pcolor(X1,X2,PCOND2);
@@ -201,3 +204,5 @@ if __name__ == "__main__":
     print(system.__doc__)
 else:
     import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.stats import multivariate_normal
