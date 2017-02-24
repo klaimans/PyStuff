@@ -37,15 +37,18 @@ class HIM:
                 / ((self.N - 2) * self.omega + 2 * self.deltaN)
     def conditonalP(self,x,R,m):
         Pcond = np.sqrt(1.0/(2 * np.pi * self.var(m)))\
-              * np.exp(-(x+self.mu(m)*R)**2/(2*self.var(m)))
+              * np.exp(-(x - self.mu(m)*R)**2/(2*self.var(m)))
         return Pcond
     def mu(self,m):
-        mu = (self.omega - self.deltaN) / ((m - 1) * self.deltaN + (1 - m + self.N) * self.omega)
+        mu = (self.deltaN - self.omega) / ((m - 1) * self.deltaN + (1 - m + self.N) * self.omega)
         return mu
     def var(self,m):
         var = m * (self.deltaN - self.omega) + self.N * self.omega
         var = var / (2 * self.deltaN * ((m - 1) * self.deltaN + (1 - m + self.N) * self.omega))
         return var
+    def sigma(self,m):
+        sigma = np.sqrt(self.var(m))    
+        return sigma
     def psiN(self,x):
         """ 
         The many-body wavefunction Psi(x1,x2,...,xN) 
@@ -161,48 +164,83 @@ class HIM:
                   .format(np.max(PCOND2-RHO2/RHO1)),fontsize = 16)
         axs[0].pcolor(X1,X2,RHO2/RHO1);
         axs[1].pcolor(X1,X2,PCOND2);
-    def rho1hist(self, numshots = 1, xmin = -5.0, xmax = +5.0):
+    def rho1hist(self, numshots = 1, xmin = -5.0, xmax = +5.0, random_dist = 'uniform'):
         """
         
         """
-        M = np.power(self.KN,2)
-        sample_size =  (max(1,int(1.0/M))*numshots)
-        coordinate_sample = (xmax - xmin) * np.random.random_sample(sample_size) + xmin
+        if random_dist == 'uniform':
+            M = np.power(self.KN,2)
+            sample_size =  (max(1,int(1.0/M))*numshots)
+            coordinate_sample = (xmax - xmin) * np.random.random_sample(sample_size) + xmin
+            f = self.rho1(coordinate_sample)
+        elif random_dist == 'normal':
+            sigma = np.sqrt(1.0/self.deltaN)
+            sigma = 5
+            M = np.power(self.KN,2)*np.sqrt(2*np.pi)*sigma
+            print(M)
+            sample_size =  (max(1,int(1.0/M))*numshots)
+            coordinate_sample = np.random.normal(0, sigma, sample_size)
+            f = self.rho1(coordinate_sample)/self.gaussian(0, sigma, coordinate_sample)
         p = np.random.random_sample(sample_size)
-        f = np.zeros_like(p)
-        f = self.rho1(coordinate_sample)
         idx = (p <= f/M) # rejection sampling
         sshot = coordinate_sample[idx]
         print('Estimated Sampling Efficency={:3.2f}%'.format(100*sshot.shape[0]/coordinate_sample.shape[0]))
-        return sshot
+#        return sshot
+        plt.hist(sshot,normed = 1, bins = 32, alpha = 0.5, histtype='stepfilled', linewidth = 3, color = 'b');
+        x = np.linspace(-3,3,512,endpoint=True)
+        plt.plot(x,  self.rho1(x), linewidth = 3, color = 'k');
     def rho2hist(self, numshots = 1, xmin = -5.0, xmax = +5.0, ymin = -5.0, ymax = +5.0):
         """
         
         """
-        M = np.power(self.KN,2)
-        sample_size =  (max(1,int(1.0/M))*numshots)
-        x_sample = (xmax - xmin) * np.random.random_sample(sample_size) + xmin
-        y_sample = (ymax - ymin) * np.random.random_sample(sample_size) + ymin
-        #x_sample = np.random.normal(0, 1/self.deltaN, sample_size)
-        #y_sample = np.random.normal(0, 1/self.deltaN, sample_size)
-        p = np.random.random_sample(sample_size)
+
+        #x_sample = (xmax - xmin) * np.random.random_sample(sample_size) + xmin
+        #y_sample = (ymax - ymin) * np.random.random_sample(sample_size) + ymin
+        #x_sample = np.random.normal(0, 1, sample_size)
+        #y_sample = np.random.normal(0, 1, sample_size)
+        meanmat=np.zeros(2)
+        covmat = np.eye(2)
+        M = self.rho2(0,0) * (2*np.pi*np.sqrt(np.linalg.det(covmat)))
+        sample_size =  (max(1,int(1.0/M))*numshots,2)
+        #x_sample, y_sample = np.random.multivariate_normal(mean, covmat, sample_size).T
+        rv = multivariate_normal(mean=meanmat,
+                                 cov=covmat, allow_singular=False)
+        coordinate_sample = rv.rvs(sample_size[0])
+        p = np.random.random_sample(sample_size[0])
         f = np.zeros_like(p)
-        #M = M * 2 * np.pi
-        #f = self.rho2(x_sample,y_sample)/self.gaussian(0, 1, x_sample)/self.gaussian(0, 1, y_sample)
-        f = self.rho2(x_sample,y_sample)
+        for i in range(sample_size[0]):
+            f[i] = self.rho2(coordinate_sample[i][0],coordinate_sample[i][1]) / rv.pdf(coordinate_sample[i])
+        #f = self.rho2(x_sample,y_sample)/(self.gaussian(0.0, 1.0, x_sample)*self.gaussian(0, 1, y_sample))
+        #f = self.rho2(x_sample,y_sample)
         idx = (p <= f/M) # rejection sampling
-        sshot = np.asarray([x_sample[idx],y_sample[idx]])
-        print('Estimated Sampling Efficency={:3.2f}%'.format(100*sshot.shape[0]/x_sample.shape[0]))
-        return sshot.T
+        #sshot = np.asarray([x_sample[idx],y_sample[idx]])
+        print(coordinate_sample.shape)
+        sshot = coordinate_sample[idx]
+        #print('Estimated Sampling Efficency={:3.2f}%'.format(100*sshot.shape[0]/x_sample.shape[0]))
+        print('Estimated Sampling Efficency={:3.2f}%'.format(100*sshot.shape[0]/coordinate_sample.shape[0]))
+        return sshot
     def gaussian(self, mu, sigma, x):
-        gauss = 1/(sigma * np.sqrt(2 * np.pi)) * np.exp( - (x - mu)**2 / (2 * sigma**2)) 
+        gauss = (1.0/(sigma * np.sqrt(2 * np.pi))) * np.exp( - (x - mu)**2 / (2 * sigma**2)) 
         return gauss
-     
-if __name__ == "__main__":
-    import numpy as np
-    system = HIM(N = 2, omega = 1, lambda0 = 5);
-    print(system.__doc__)
-else:
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from scipy.stats import multivariate_normal
+    def singleshot_chainrule(self, numshots = 1):
+        """
+        Single-shot from the N-body density expanded as a product of conditional probabilities 
+        and the one body density. 
+        """
+        sshot = np.zeros((numshots,self.N))
+        Psshot = np.zeros(numshots)
+        coordinate_sample = np.zeros(self.N)
+        for i in range(numshots):
+            mu = 0.0
+            sigma = np.sqrt (1 / (2 * (2 * self.a1 - self.a2)))
+            coordinate_sample[:] = 0
+            coordinate_sample[0] = np.random.normal(mu, sigma)
+            Psshot[i] = self.gaussian(mu,sigma,coordinate_sample[0])
+            for m in range(2,system.N+1):
+                R = np.sum(coordinate_sample)
+                mu = self.mu(m)*R
+                sigma = self.sigma(m)
+                coordinate_sample[m-1] = np.random.normal(mu, sigma)
+                Psshot[i] = Psshot[i] * self.gaussian(mu,sigma,coordinate_sample[m-1])
+            sshot[i,:] = coordinate_sample
+        return sshot, Psshot
