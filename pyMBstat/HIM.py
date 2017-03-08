@@ -10,12 +10,20 @@ class HIM:
     omega - Frequency of the single particle harmonic confinement potential.
     lambda0 - Two body interaction parameter (= gamma^2 / 2 in the paper).
     """
-    def __init__(self, N = 10, omega = 1, lambda0 = 0.1):
+    def __init__(self, N = 10, omega = 1, lambda0 = 0.1, Lambda = None):
         self.N = N
         self.dimensions = 1
         self.omega = omega
-        self.lambda0 = lambda0
-        self.deltaN = np.sqrt(np.power(omega,2)+N*2*lambda0)
+        if Lambda:
+            self.Lambda = Lambda
+            self.lambda0 = self.Lambda / (N-1)
+        else:
+            self.lambda0 = lambda0
+            self.Lambda = self.lambda0 * (N-1)
+        self.deltaN = np.sqrt(np.power(self.omega,2)+self.N * 2 * self.lambda0)
+        # Ground state Energy
+        self.E0 = self.omega / 2.0 + self.deltaN / 2.0 * (self.N - 1.0)
+        # wavefunction parameters 
         self.KN = np.power(self.deltaN/np.pi,(self.dimensions/4)*(self.N-1))\
                 * np.power(self.omega/np.pi,(self.dimensions/4))
         self.A = (1/(4*self.N))*((self.N-1)*self.deltaN + self.omega)
@@ -26,6 +34,11 @@ class HIM:
                 / ((self.N-1.0)*self.omega+self.deltaN) / (4.0*self.N)
         self.a2 = (self.N-1)*np.power(self.omega-self.deltaN,2)\
                 /((self.N-1.0)*self.omega+self.deltaN) / (2.0*self.N)
+        # Parameters for natural occupations
+        a = np.sqrt(2.0 * self.a1 - self.a2)
+        b = np.sqrt(2.0 * self.a1 + self.a2)
+        self.z = (b-a) / (a+b)
+        self.alpha = np.sqrt(a * b)
         # parameters for Rho2
         self.b1 = (1 / (4 * self.N)) * ((self.N - 2) * self.omega**2 + (3 * self.N - 2) * self.deltaN**2
                 + 2 * (self.N**2 - 2 * self.N + 2) * self.omega * self.deltaN)\
@@ -35,6 +48,18 @@ class HIM:
                 / ((self.N - 2) * self.omega + 2 * self.deltaN)
         self.b3 = (1 / (2 * self.N)) * ((self.N - 2) * (self.omega - self.deltaN)**2)\
                 / ((self.N - 2) * self.omega + 2 * self.deltaN)
+        self.print_system_summary()
+    def print_system_summary(self):
+        print('--------------------------------------------------')
+        print('            Harmonic Interaction Model            ')
+        print('--------------------------------------------------')
+        print('Number of Bosons       = {:<10d}'.format(self.N))
+        print('omega                  = {:<10.6f}'.format(self.omega))
+        print('delta_N                = {:<10.6f}'.format(self.deltaN))
+        print('Ground state energy    = {:<10.6f}'.format(self.E0))
+        print('Uncondensed fraction   = {:<3.2f}%'.format(100*self.z))
+        print('Mean field interaction strength ( Lambda ) = {:<6.6f}'.format(self.Lambda))
+
     def conditonalP(self,x,R,m):
         Pcond = np.sqrt(1.0/(2 * np.pi * self.var(m)))\
               * np.exp(-(x - self.mu(m)*R)**2/(2*self.var(m)))
@@ -236,7 +261,7 @@ class HIM:
             coordinate_sample[:] = 0
             coordinate_sample[0] = np.random.normal(mu, sigma)
             Psshot[i] = self.gaussian(mu,sigma,coordinate_sample[0])
-            for m in range(2,system.N+1):
+            for m in range(2,self.N+1):
                 R = np.sum(coordinate_sample)
                 mu = self.mu(m)*R
                 sigma = self.sigma(m)
@@ -244,3 +269,16 @@ class HIM:
                 Psshot[i] = Psshot[i] * self.gaussian(mu,sigma,coordinate_sample[m-1])
             sshot[i,:] = coordinate_sample
         return sshot, Psshot
+    def uncondensed_fraction(self):
+        f = self.z 
+        print('Uncondensed fraction = {:3.2f}%'.format(100*f))
+        return f
+
+if __name__ == '__main__':
+    import numpy as np
+    from scipy.stats import multivariate_normal, gaussian_kde
+    system = HIM(N = 100, omega = 1, Lambda = 1);
+    print(system.__doc__)
+else:
+    import numpy as np
+    from scipy.stats import multivariate_normal, gaussian_kde
