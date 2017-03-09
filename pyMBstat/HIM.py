@@ -273,6 +273,23 @@ class HIM:
         f = self.z 
         print('Uncondensed fraction = {:3.2f}%'.format(100*f))
         return f
+    def process_single_shots(self, sshots, observable = 'position'):
+        N = sshots.shape[1]
+        if observable == 'position':
+            processed_sshots = np.sum(sshots, axis = 1) / np.sqrt(N)
+        elif observable == 'cm':
+            processed_sshots = np.sum(sshots, axis = 1) / N
+        return processed_sshots
+    def make_sshot_image(self, sshots, num_bins = 128, num_images = 128, image_size = None, xlim = None):
+        if not image_size:
+            image_size = num_bins
+        if not xlim:
+            xlim = (np.amin(sshots),np.amax(sshots))
+        sshot_image = np.zeros((image_size,num_bins), dtype = np.int16)
+        for i,ind in enumerate(np.random.randint(sshots.shape[0], size = image_size)): 
+            sshot_image[i,:], edges = np.histogram(sshots[ind,:], normed = 0, bins = num_bins, range=[xlim[0], xlim[1]])
+        return sshot_image
+    
 
 if __name__ == '__main__':
     import numpy as np
