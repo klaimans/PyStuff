@@ -288,7 +288,7 @@ class HIM:
         sshot_image = np.zeros((image_size,num_bins), dtype = np.int16)
         for i,ind in enumerate(np.random.randint(sshots.shape[0], size = image_size)): 
             sshot_image[i,:], edges = np.histogram(sshots[ind,:], normed = 0, bins = num_bins, range=[xlim[0], xlim[1]])
-        return sshot_image
+        return sshot_image, edges
     
 
 if __name__ == '__main__':
